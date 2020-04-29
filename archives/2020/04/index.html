@@ -1,13 +1,101 @@
 
-extends _partial/layout.pug
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Archives: 4/2020: 2020 | Hexo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.17.1/styles/railscasts.css">
+    <link rel="stylesheet" href="/lightx.css"/>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon512.png">
+    <meta name="theme-color" content="#ffffff"/>
+    
+  <meta name="generator" content="Hexo 4.2.0"><link rel="alternate" href="/atom.xml" title="Hexo" type="application/atom+xml">
+</head>
+  <body>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js', {scope: '/'})
+            .then(function (registration) {
+              // console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            })
+            .catch(function (err) {
+              console.log('ServiceWorker registration failed: ', err);
+            });
+        });
+      }
+    </script>
+  <div id="page-container">
+    <div id="content-wrap">
+      <div class="wrapper">
+        <div class="container">
+            <nav>
+    <ul>
+      <li><a href="/">Hexo</a></li>
+      <li><a href="/archives">Archives</a></li>
+      <li><a href="/about">About</a></li>
+    </ul>
+</nav>
 
-prepend title
-  | #{__('title.archive')} | 
+            
 
-block content
-  #archive.hty-card
-    include _mixin/post-collapse.pug
-    +page_header(__('title.archive'), theme.menu.archives.icon)
-    .page-subtitle= _p('counter.archive_posts', site.posts.length)
-    +post_collapse(page.posts)
-  include _partial/pagination.pug
+<article id="archive">
+    
+    <h1>4/2020</h1>
+    
+    <div class="archive-item">
+        <a href="/2020/04/26/php%E5%8F%8D%E5%BA%8F%E5%88%97%E5%8C%96%E5%88%B0pop%E9%93%BE%E6%9E%84%E9%80%A0/">
+            php反序列化到pop链构造
+        </a>
+        <time datetime="2020-04-25T16:00:00.000Z">
+            2020-04-26
+        </time>
+    </div>
+    
+</article>
+
+<div class="paginator">
+    
+        <div class="prev" style="visibility: hidden;">PREV</div>
+    
+    
+    
+        <div class="next" style="visibility: hidden;">NEXT</div>
+    
+</div>
+
+
+
+        </div>
+      </div>
+    </div>
+    <div id="footer">
+      <div class="wrapper">
+        <div class="container">
+          
+<button id="back-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">TOP</button>
+<footer>
+    <div>
+        <p>
+            © 2020 <a href="http://yoursite.com">John Doe</a>.
+            Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>.
+            Theme <a href="https://github.com/songquanpeng/hexo-theme-lightx" target="_blank" rel="noopener">lightx</a>.
+            
+        </p>
+    </div>
+</footer>
+
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@latest/build/highlight.min.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad();
+  </script>
+  </body>
+</html>
